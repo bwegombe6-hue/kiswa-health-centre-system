@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Display - Kiswa HC III</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="display-page">
+
+    <div class="display-container">
+
+        <div class="display-header">
+            <a href="index.html" class="display-back-btn">← Home</a>
+            <h1>KISWA HEALTH CENTRE III</h1>
+            <p>Outpatient Department - Queue Display</p>
+        </div>
+
+        <div class="now-serving-box">
+            <div class="now-serving-label">NOW SERVING</div>
+            <div class="now-serving-number" id="currentToken">---</div>
+        </div>
+
+        <div class="next-in-line-box">
+            <div class="next-label">NEXT IN LINE</div>
+            <div class="next-numbers" id="nextTokens">
+                <span class="next-token">---</span>
+                <span class="next-token">---</span>
+                <span class="next-token">---</span>
+            </div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-label">WAITING</div>
+                <div class="stat-value" id="waitingCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">SERVED TODAY</div>
+                <div class="stat-value" id="servedCount">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">TIME</div>
+                <div class="stat-value" id="clock">--:--</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'kiswa_queue_data';
+
+        function getQueueData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (!data) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            const parsed = JSON.parse(data);
+            if (parsed.date !== new Date().toDateString()) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            return parsed;
+        }
+
+        function updateDisplay() {
+            const data = getQueueData();
+
+            document.getElementById('currentToken').textContent = data.currentServing || '---';
+
+            const waiting = data.queue.filter(p => p.status === 'waiting');
+            const nextTokens = document.querySelectorAll('.next-token');
+            nextTokens.forEach((el, i) => {
+                el.textContent = waiting[i] ? waiting[i].token : '---';
+            });
+
+            document.getElementById('waitingCount').textContent = waiting.length;
+            document.getElementById('servedCount').textContent = data.servedCount || 0;
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('clock').textContent = h + ':' + m;
+        }
+
+        setInterval(updateDisplay, 2000);
+        setInterval(updateClock, 1000);
+        updateDisplay();
+        updateClock();
+    </script>
+
+</body>
+</html>

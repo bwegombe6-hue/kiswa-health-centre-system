@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Kiswa HC III</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-bg">
+
+    <div class="reports-container">
+
+        <div class="reports-header">
+            <a href="dashboard.html" class="back-btn">← Back</a>
+            <h1>📊 Daily Reports</h1>
+            <p id="reportDate">Today</p>
+        </div>
+
+        <div class="report-summary">
+            <div class="report-card">
+                <div class="report-icon">👥</div>
+                <div class="report-value" id="reportTotal">0</div>
+                <div class="report-label">Total Patients</div>
+            </div>
+            <div class="report-card">
+                <div class="report-icon">✅</div>
+                <div class="report-value" id="reportServed">0</div>
+                <div class="report-label">Served</div>
+            </div>
+            <div class="report-card">
+                <div class="report-icon">⏳</div>
+                <div class="report-value" id="reportWaiting">0</div>
+                <div class="report-label">Still Waiting</div>
+            </div>
+            <div class="report-card">
+                <div class="report-icon">⏱️</div>
+                <div class="report-value" id="reportAvgWait">0m</div>
+                <div class="report-label">Average Wait</div>
+            </div>
+        </div>
+
+        <div class="report-table-section">
+            <h2>Patient List</h2>
+            <div class="table-wrapper">
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th>Token</th>
+                            <th>Name</th>
+                            <th>Age</th>
+                            <th>Gender</th>
+                            <th>Time In</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportTableBody">
+                        <tr><td colspan="6" style="text-align: center;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <button class="btn-primary" onclick="window.print()">🖨️ Print Report</button>
+        </div>
+
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'kiswa_queue_data';
+
+        function getQueueData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (!data) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            const parsed = JSON.parse(data);
+            if (parsed.date !== new Date().toDateString()) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            return parsed;
+        }
+
+        function formatStatus(status) {
+            const map = {
+                'waiting': '⏳ Waiting',
+                'serving': '📢 Serving',
+                'completed': '✅ Completed'
+            };
+            return map[status] || status;
+        }
+
+        function loadReport() {
+            const data = getQueueData();
+
+            document.getElementById('reportDate').textContent = 
+                new Date().toLocaleDateString('en-GB', { 
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' 
+                });
+
+            const total = data.queue.length;
+            const served = data.queue.filter(p => p.status === 'completed').length;
+            const waiting = data.queue.filter(p => p.status === 'waiting').length;
+
+            document.getElementById('reportTotal').textContent = total;
+            document.getElementById('reportServed').textContent = served;
+            document.getElementById('reportWaiting').textContent = waiting;
+
+            const servedList = data.queue.filter(p => p.status === 'completed' && p.waitTime);
+            if (servedList.length > 0) {
+                const totalWait = servedList.reduce((sum, p) => sum + p.waitTime, 0);
+                document.getElementById('reportAvgWait').textContent = Math.round(totalWait / servedList.length) + 'm';
+            } else {
+                document.getElementById('reportAvgWait').textContent = '0m';
+            }
+
+            const tbody = document.getElementById('reportTableBody');
+            if (data.queue.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 30px;">No patients today</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.queue.map(p => `
+                <tr>
+                    <td><strong>${p.token}</strong></td>
+                    <td>${p.fullName}</td>
+                    <td>${p.age}</td>
+                    <td>${p.gender}</td>
+                    <td>${p.timeIn}</td>
+                    <td><span class="status-badge status-${p.status}">${formatStatus(p.status)}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        loadReport();
+    </script>
+
+</body>
+</html>

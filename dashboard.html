@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff Dashboard - Kiswa HC III</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-bg">
+
+    <div class="dashboard-container">
+
+        <div class="dashboard-header">
+            <div>
+                <h1>👨‍⚕️ Staff Dashboard</h1>
+                <p>Kiswa Health Centre III - OPD</p>
+            </div>
+            <a href="index.html" class="logout-btn">🏠 Home</a>
+        </div>
+
+        <div class="current-serving-box">
+            <div class="serving-label">NOW SERVING</div>
+            <div class="serving-number" id="currentServing">---</div>
+            <button class="btn-call-next" onclick="callNext()">📢 CALL NEXT PATIENT</button>
+        </div>
+
+        <div class="queue-section">
+            <h2>📋 Waiting Queue (<span id="waitingCount">0</span>)</h2>
+            <div class="queue-list" id="queueList">
+                <p style="text-align: center; color: #5a7a9a; padding: 20px;">No patients waiting</p>
+            </div>
+        </div>
+
+        <div class="quick-stats">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-value" id="totalToday">0</div>
+                <div class="stat-label">Total Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-value" id="servedToday">0</div>
+                <div class="stat-label">Served</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-value" id="avgWait">0m</div>
+                <div class="stat-label">Avg Wait</div>
+            </div>
+        </div>
+
+        <div class="dashboard-actions">
+            <a href="reports.html" class="action-btn">📊 View Reports</a>
+            <a href="register.html" class="action-btn">➕ Register Walk-in</a>
+            <button class="action-btn reset-btn" onclick="resetDay()">🔄 Reset Day</button>
+        </div>
+
+    </div>
+
+    <!-- ===== TRIAGE MODAL ===== -->
+    <div class="modal-overlay" id="triageModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h2>📝 Triage & Consultation Record</h2>
+                <button class="modal-close" onclick="closeTriage()">✕</button>
+            </div>
+            
+            <div class="modal-patient-info" id="modalPatientInfo">
+                <!-- Patient name & token shown here -->
+            </div>
+
+            <form id="triageForm" onsubmit="return saveTriage(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Blood Pressure</label>
+                        <input type="text" id="bp" placeholder="e.g., 120/80">
+                    </div>
+                    <div class="form-group">
+                        <label>Temperature (°C)</label>
+                        <input type="text" id="temp" placeholder="e.g., 36.5">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Weight (kg)</label>
+                        <input type="text" id="weight" placeholder="e.g., 65">
+                    </div>
+                    <div class="form-group">
+                        <label>Triage Category</label>
+                        <select id="triageCategory">
+                            <option value="Normal">Normal</option>
+                            <option value="Urgent">Urgent</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Chief Complaint / Notes</label>
+                    <textarea id="notes" rows="3" placeholder="e.g., Headache, fever for 2 days"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeTriage()">Cancel</button>
+                    <button type="submit" class="btn-primary">💾 Save & Continue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'kiswa_queue_data';
+        let currentTriagePatient = null;
+
+        function getQueueData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (!data) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            const parsed = JSON.parse(data);
+            if (parsed.date !== new Date().toDateString()) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            return parsed;
+        }
+
+        function saveQueueData(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function callNextPatient() {
+            const data = getQueueData();
+            const waiting = data.queue
+                .filter(p => p.status === 'waiting')
+                .sort((a, b) => {
+                    const priorityOrder = { 'emergency': 1, 'urgent': 2, 'normal': 3 };
+                    const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+                    if (pDiff !== 0) return pDiff;
+                    return a.timeInMs - b.timeInMs;
+                });
+
+            if (waiting.length === 0) return null;
+
+            const next = waiting[0];
+
+            if (data.currentServing) {
+                const prev = data.queue.find(p => p.token === data.currentServing);
+                if (prev && prev.status === 'serving') {
+                    prev.status = 'completed';
+                    prev.waitTime = Math.round((Date.now() - prev.timeInMs) / 60000);
+                    data.servedCount++;
+                }
+            }
+
+            next.status = 'serving';
+            next.calledAt = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+            data.currentServing = next.token;
+
+            saveQueueData(data);
+            return { token: next.token, patient: next };
+        }
+
+        function resetDayData() {
+            localStorage.removeItem(STORAGE_KEY);
+        }
+
+        function loadDashboard() {
+            const data = getQueueData();
+
+            document.getElementById('currentServing').textContent = data.currentServing || '---';
+
+            const waiting = data.queue.filter(p => p.status === 'waiting');
+            document.getElementById('waitingCount').textContent = waiting.length;
+
+            const queueList = document.getElementById('queueList');
+            if (waiting.length === 0) {
+                queueList.innerHTML = '<p style="text-align: center; color: #5a7a9a; padding: 20px;">No patients waiting</p>';
+            } else {
+                queueList.innerHTML = waiting.map(p => `
+                    <div class="queue-item ${p.priority}">
+                        <span class="queue-token">${p.token}</span>
+                        <span class="queue-name">${p.fullName} (${p.age} yrs)</span>
+                        <span class="queue-time">${p.timeIn}</span>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById('totalToday').textContent = data.queue.length;
+            document.getElementById('servedToday').textContent = data.servedCount || 0;
+
+            const served = data.queue.filter(p => p.status === 'completed' && p.waitTime);
+            if (served.length > 0) {
+                const totalWait = served.reduce((sum, p) => sum + p.waitTime, 0);
+                document.getElementById('avgWait').textContent = Math.round(totalWait / served.length) + 'm';
+            } else {
+                document.getElementById('avgWait').textContent = '0m';
+            }
+        }
+
+        function callNext() {
+            const result = callNextPatient();
+            if (result) {
+                loadDashboard();
+                openTriage(result.patient);
+            } else {
+                alert('No patients waiting in the queue.');
+            }
+        }
+
+        function openTriage(patient) {
+            currentTriagePatient = patient;
+            document.getElementById('modalPatientInfo').innerHTML = `
+                <div class="patient-token">${patient.token}</div>
+                <div class="patient-name">${patient.fullName}</div>
+                <div class="patient-detail">${patient.age} yrs • ${patient.gender} • ${patient.village || 'No village'}</div>
+            `;
+            document.getElementById('triageModal').classList.add('active');
+        }
+
+        function closeTriage() {
+            document.getElementById('triageModal').classList.remove('active');
+            document.getElementById('triageForm').reset();
+            currentTriagePatient = null;
+        }
+
+        function saveTriage(e) {
+            e.preventDefault();
+
+            if (!currentTriagePatient) return false;
+
+            const data = getQueueData();
+            const patient = data.queue.find(p => p.token === currentTriagePatient.token);
+
+            if (patient) {
+                patient.triage = {
+                    bp: document.getElementById('bp').value.trim() || '—',
+                    temp: document.getElementById('temp').value.trim() || '—',
+                    weight: document.getElementById('weight').value.trim() || '—',
+                    category: document.getElementById('triageCategory').value,
+                    notes: document.getElementById('notes').value.trim() || '—',
+                    recordedAt: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+                };
+                saveQueueData(data);
+            }
+
+            closeTriage();
+            loadDashboard();
+            return false;
+        }
+
+        function resetDay() {
+            if (confirm('⚠️ This will clear all patients for today. Continue?')) {
+                resetDayData();
+                loadDashboard();
+            }
+        }
+
+        setInterval(loadDashboard, 3000);
+        loadDashboard();
+    </script>
+
+</body>
+</html>

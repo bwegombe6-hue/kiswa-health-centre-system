@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Patient - Kiswa HC III</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-bg">
+
+    <div class="page-container">
+
+        <div class="page-header">
+            <a href="index.html" class="back-btn">← Back</a>
+            <h1>📝 Patient Registration</h1>
+            <p>Fill in the details below to register a patient</p>
+        </div>
+
+        <div class="form-card" id="formCard">
+            <form id="registerForm" onsubmit="return registerPatient(event)">
+
+                <div class="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" id="fullName" placeholder="e.g., John Mukasa" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Age *</label>
+                        <input type="number" id="age" placeholder="e.g., 35" min="0" max="120" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Gender *</label>
+                        <select id="gender" required>
+                            <option value="">Select...</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" id="phone" placeholder="e.g., 0700123456">
+                </div>
+
+                <div class="form-group">
+                    <label>Village / Area</label>
+                    <input type="text" id="village" placeholder="e.g., Bugolobi, Kitintale">
+                </div>
+
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="priority">
+                        <option value="normal">Normal</option>
+                        <option value="urgent">Urgent (Elderly, Pregnant)</option>
+                        <option value="emergency">Emergency</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-primary">✅ REGISTER & GET TOKEN</button>
+            </form>
+        </div>
+
+        <div class="token-card" id="tokenCard" style="display: none;">
+            <div class="token-success">✅ Patient Registered!</div>
+            <div class="token-label">TOKEN NUMBER</div>
+            <div class="token-number" id="tokenNumber">A-001</div>
+            <div class="token-patient" id="tokenPatient">John Mukasa</div>
+            <div class="token-message">Please wait in the waiting area</div>
+            <button class="btn-secondary" onclick="window.print()">🖨️ Print Token</button>
+            <button class="btn-primary" onclick="registerAnother()">➕ Register Another Patient</button>
+        </div>
+
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'kiswa_queue_data';
+
+        function getQueueData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (!data) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            const parsed = JSON.parse(data);
+            if (parsed.date !== new Date().toDateString()) {
+                return { queue: [], currentServing: null, servedCount: 0, date: new Date().toDateString() };
+            }
+            return parsed;
+        }
+
+        function saveQueueData(data) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        function generateToken() {
+            const data = getQueueData();
+            const nextNum = data.queue.length + 1;
+            return 'A-' + String(nextNum).padStart(3, '0');
+        }
+
+        function addPatient(patient) {
+            const data = getQueueData();
+            const token = generateToken();
+            const now = new Date();
+            const timeIn = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+            const newPatient = {
+                id: Date.now(),
+                token: token,
+                fullName: patient.fullName,
+                age: patient.age,
+                gender: patient.gender,
+                phone: patient.phone || '',
+                village: patient.village || '',
+                priority: patient.priority || 'normal',
+                status: 'waiting',
+                timeIn: timeIn,
+                timeInMs: Date.now(),
+                calledAt: null,
+                waitTime: null
+            };
+
+            data.queue.push(newPatient);
+            saveQueueData(data);
+            return { token: token, patient: newPatient };
+        }
+
+        function registerPatient(e) {
+            e.preventDefault();
+
+            const patient = {
+                fullName: document.getElementById('fullName').value.trim(),
+                age: document.getElementById('age').value,
+                gender: document.getElementById('gender').value,
+                phone: document.getElementById('phone').value.trim(),
+                village: document.getElementById('village').value.trim(),
+                priority: document.getElementById('priority').value
+            };
+
+            const result = addPatient(patient);
+
+            document.getElementById('formCard').style.display = 'none';
+            document.getElementById('tokenCard').style.display = 'block';
+            document.getElementById('tokenNumber').textContent = result.token;
+            document.getElementById('tokenPatient').textContent = patient.fullName;
+
+            return false;
+        }
+
+        function registerAnother() {
+            document.getElementById('registerForm').reset();
+            document.getElementById('formCard').style.display = 'block';
+            document.getElementById('tokenCard').style.display = 'none';
+        }
+    </script>
+
+</body>
+</html>
